@@ -50,11 +50,16 @@ function content(value: unknown): string {
   return value === undefined ? "" : code(json(value), "json");
 }
 
+function removeColorCodes(value: string): string {
+  return value.replace(/\x1b\[[0-9;:]*m/g, "");
+}
+
 function messageBody(message: ObjectValue): string {
   if (message.role === "system") return formatSystemMessage(message) || content(message.content);
   if (message.role === "bashExecution") {
-    return [`### Command\n\n${code(String(message.command ?? ""), "sh")}`, `### Output\n\n${code(String(message.output ?? ""))}`].join("\n\n");
+    return [`### Command\n\n${code(String(message.command ?? ""), "sh")}`, `### Output\n\n${code(removeColorCodes(String(message.output ?? "")))}`].join("\n\n");
   }
+  if (message.role === "toolResult") return removeColorCodes(content(message.content) || text(message.summary) || "");
   return content(message.content) || text(message.summary) || "";
 }
 

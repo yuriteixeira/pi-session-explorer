@@ -63,6 +63,20 @@ test("shows tool results, shell execution, summaries and custom entry data", () 
   assert.match(view({ type: "custom", customType: "notes", data: { key: "value" } }), /```json\n\{\n  "key": "value"\n\}\n```/);
 });
 
+test("removes color codes from tool output in Markdown only", () => {
+  const colored = "\u001b[31mred\u001b[0m and \u001b[38:2:10:20:30mblue\u001b[m";
+  const result = { type: "message", message: { role: "toolResult", content: [{ type: "text", text: colored }] } };
+  assert.match(view(result), /\n---\n\nred and blue\n$/);
+  assert.doesNotMatch(view(result), /\u001b/);
+
+  const bash = { type: "message", message: { role: "bashExecution", command: "echo color", output: colored } };
+  assert.match(view(bash), /### Output\n\n```\nred and blue\n```/);
+  assert.doesNotMatch(view(bash), /\u001b/);
+
+  const user = { type: "message", message: { role: "user", content: colored } };
+  assert.match(view(user), /\u001b\[31mred/);
+});
+
 test("invalid lines remain viewable and code fences cannot be closed by content", () => {
   assert.match(formatMarkdownRecord("invalid", 5), /error: "Invalid JSON"[\s\S]*invalid/);
   const markdown = view({ type: "message", message: { role: "assistant", content: [{ type: "toolCall", name: "bash", arguments: { command: "echo '```'" } }] } });

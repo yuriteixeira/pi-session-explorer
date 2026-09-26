@@ -48,6 +48,24 @@ test("describes new JSONL header records", () => {
   assert.equal(describeRecord('{"v":4,"kind":"header"}'), "header");
 });
 
+test("editor shows plain tool output in Markdown and preserves color codes in raw JSON", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "explorer-test-"));
+  try {
+    const output = join(dir, "viewed");
+    const script = join(dir, "editor.cjs");
+    const colored = "\u001b[32mgreen\u001b[0m";
+    const raw = JSON.stringify({ type: "message", message: { role: "toolResult", content: [{ type: "text", text: colored }] } });
+    await writeFile(script, `require('node:fs').copyFileSync(process.argv[2], ${JSON.stringify(output)});`);
+    const record = { line: 1, raw, label: "toolResult" };
+    await openRecord(record, `${process.execPath} ${script}`);
+    assert.match(await readFile(output, "utf8"), /\n---\n\ngreen\n$/);
+    await openRecord(record, `${process.execPath} ${script}`, "raw");
+    assert.equal(JSON.parse(await readFile(output, "utf8")).message.content[0].text, colored);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("opens an isolated temporary copy and removes it after editor exit", async () => {
   const dir = await mkdtemp(join(tmpdir(), "explorer-test-"));
   try {
