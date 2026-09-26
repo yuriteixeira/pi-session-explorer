@@ -3,11 +3,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
-import { openRecord } from "../extensions/session-explorer/editor.ts";
-import { describeRecord, formatMarkdownRecord } from "../extensions/session-explorer/content.ts";
-import { formatRawRecord, lastAssistantRecord, readRecords } from "../extensions/session-explorer/records.ts";
-import { snapshotPath } from "../extensions/session-explorer/snapshot.ts";
-import { browseRecords, openLastRecord } from "../extensions/session-explorer/view.ts";
+import { openRecord } from "../extensions/session-viewer/editor.ts";
+import { describeRecord, formatMarkdownRecord } from "../extensions/session-viewer/content.ts";
+import { formatRawRecord, lastAssistantRecord, readRecords } from "../extensions/session-viewer/records.ts";
+import { snapshotPath } from "../extensions/session-viewer/snapshot.ts";
+import { browseRecords, openLastRecord } from "../extensions/session-viewer/view.ts";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 test("uses the session name and requested turn pattern", () => {

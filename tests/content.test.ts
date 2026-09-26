@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { describeRecord, formatMarkdownRecord } from "../extensions/session-explorer/content.ts";
+import { describeRecord, formatMarkdownRecord } from "../extensions/session-viewer/content.ts";
 
 function view(record: object): string {
   return formatMarkdownRecord(JSON.stringify(record), 12);

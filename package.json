@@ -1,14 +1,22 @@
 {
-  "name": "pi-session-explorer",
+  "name": "pi-session-viewer",
   "version": "0.1.0",
-  "private": true,
+  "description": "Browse Pi session records and open them in your editor",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuriteixeira/pi-session-viewer.git"
+  },
+  "homepage": "https://github.com/yuriteixeira/pi-session-viewer#readme",
+  "bugs": "https://github.com/yuriteixeira/pi-session-viewer/issues",
+  "files": ["extensions/"],
   "type": "module",
   "keywords": [
     "pi-package"
   ],
   "pi": {
     "extensions": [
-      "./extensions/session-explorer/index.ts"
+      "./extensions/session-viewer/index.ts"
     ]
   },
   "peerDependencies": {

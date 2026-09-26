@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SelectList, type SelectItem } from "@earendil-works/pi-tui";
-import { navigateList } from "../extensions/session-explorer/navigation.ts";
+import { navigateList } from "../extensions/session-viewer/navigation.ts";
 
 const items: SelectItem[] = Array.from({ length: 30 }, (_, index) => ({
   value: `${index % 2 ? "other" : "record"} #${index}`,
