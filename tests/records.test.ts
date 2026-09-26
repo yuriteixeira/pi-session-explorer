@@ -5,8 +5,10 @@ import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
 import { openRecord } from "../extensions/session-explorer/editor.ts";
 import { describeRecord, formatMarkdownRecord } from "../extensions/session-explorer/content.ts";
-import { formatRawRecord, readRecords } from "../extensions/session-explorer/records.ts";
+import { formatRawRecord, lastAssistantRecord, readRecords } from "../extensions/session-explorer/records.ts";
 import { snapshotPath } from "../extensions/session-explorer/snapshot.ts";
+import { openLastRecord } from "../extensions/session-explorer/view.ts";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 test("uses the session name and requested turn pattern", () => {
   const session = "/sessions/2026-09-26T18-31-46-656Z_01a0defc-d4de-7720-9e35-bf527a68aef2.jsonl";
@@ -48,6 +50,52 @@ test("opens each object in a transaction array as its own record", async () => {
     assert.match(formatMarkdownRecord(records[2].raw, 2, records[2].itemIndex), /\n---\n\ndark\n$/);
     assert.deepEqual(JSON.parse(formatRawRecord(records[2])), { kind: "value", op: "set", namespace: "settings", key: "theme", value: "dark" });
   } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("finds the latest assistant message across JSONL lines and transaction items", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "explorer-test-"));
+  try {
+    const path = join(dir, "session.jsonl");
+    await writeFile(path, [
+      '{"type":"message","message":{"role":"assistant","content":"earlier"}}',
+      '[{"kind":"entry","type":"message","message":{"role":"assistant","content":[{"type":"text","text":"latest"}]}},{"kind":"entry","type":"message","message":{"role":"toolResult","content":"done"}}]',
+      '{"type":"message","message":{"role":"user","content":"later"}}',
+      'not json',
+    ].join("\n"));
+    const record = lastAssistantRecord(await readRecords(path));
+    assert.equal(record?.line, 2);
+    assert.equal(record?.itemIndex, 0);
+    assert.equal(basename(snapshotPath("/tmp/pi-session-explorer", path, record!, "md")), "turn-0002-item-1--answer.md");
+    assert.equal(lastAssistantRecord((await readRecords(path)).slice(2)), undefined);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("opens the latest assistant message with the picker file path and restores the terminal", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "explorer-test-"));
+  try {
+    const path = join(dir, `${basename(dir)}.jsonl`);
+    const log = join(dir, "opened.txt");
+    const script = join(dir, "editor.cjs");
+    await writeFile(path, [
+      '{"type":"message","message":{"role":"assistant","content":"old"}}',
+      '[{"type":"message","message":{"role":"assistant","content":"new"}},{"type":"message","message":{"role":"toolResult","content":"result"}}]',
+    ].join("\n"));
+    await writeFile(script, `require('node:fs').writeFileSync(${JSON.stringify(log)}, process.argv[2]);`);
+    const record = lastAssistantRecord(await readRecords(path))!;
+    const events: string[] = [];
+    const ctx = { ui: { custom: (factory: Function) => new Promise<void>((resolve) => {
+      factory({ stop: () => events.push("stop"), start: () => events.push("start"), requestRender: () => events.push("render") }, null, null, resolve);
+    }), notify: () => {} } } as unknown as ExtensionContext;
+    await openLastRecord(ctx, record, `${process.execPath} ${script}`, path);
+    assert.deepEqual(events, ["stop", "start", "render"]);
+    assert.equal(await readFile(log, "utf8"), snapshotPath(join(tmpdir(), "pi-session-explorer"), path, record, "md"));
+    assert.match(await readFile(await readFile(log, "utf8"), "utf8"), /\n---\n\nnew\n$/);
+  } finally {
+    await rm(join(tmpdir(), "pi-session-explorer", basename(dir)), { recursive: true, force: true });
     await rm(dir, { recursive: true, force: true });
   }
 });

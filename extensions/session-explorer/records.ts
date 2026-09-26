@@ -36,6 +36,21 @@ export async function readRecords(path: string): Promise<SessionRecord[]> {
   return records;
 }
 
+export function lastAssistantRecord(records: SessionRecord[]): SessionRecord | undefined {
+  for (let index = records.length - 1; index >= 0; index--) {
+    const record = records[index];
+    try {
+      const entry = JSON.parse(record.raw);
+      if (entry !== null && typeof entry === "object" && !Array.isArray(entry) &&
+        entry.message !== null && typeof entry.message === "object" && !Array.isArray(entry.message) &&
+        entry.message.role === "assistant") return record;
+    } catch {
+      // Invalid records do not contain an assistant message.
+    }
+  }
+  return undefined;
+}
+
 export function formatRawRecord(record: SessionRecord): string {
   try {
     return `${JSON.stringify(JSON.parse(record.raw), null, 2)}\n`;

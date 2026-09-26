@@ -4,6 +4,20 @@ import { openRecord, type RecordView } from "./editor.ts";
 import { navigateList } from "./navigation.ts";
 import type { SessionRecord } from "./records.ts";
 
+export async function openLastRecord(ctx: ExtensionContext, record: SessionRecord, editor: string, sessionPath: string): Promise<void> {
+  await ctx.ui.custom<void>((tui, _theme, _keys, done) => {
+    tui.stop();
+    void openRecord(record, editor, "markdown", sessionPath)
+      .catch((error: unknown) => ctx.ui.notify(`Could not open editor: ${String(error)}`, "error"))
+      .finally(() => {
+        tui.start();
+        tui.requestRender(true);
+        done();
+      });
+    return { render: () => [], invalidate: () => {} };
+  });
+}
+
 export async function browseRecords(ctx: ExtensionContext, records: SessionRecord[], editor: string, sessionPath: string): Promise<void> {
   const items: SelectItem[] = records.map((record) => ({
     value: `${record.label} #${record.line}${record.itemIndex === undefined ? "" : `.${record.itemIndex + 1}`}`,
