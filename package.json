@@ -1,6 +1,6 @@
 {
   "name": "pi-session-viewer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Browse Pi session records and open them in your editor",
   "license": "MIT",
   "repository": {
@@ -9,7 +9,7 @@
   },
   "homepage": "https://github.com/yuriteixeira/pi-session-viewer#readme",
   "bugs": "https://github.com/yuriteixeira/pi-session-viewer/issues",
-  "files": ["extensions/"],
+  "files": ["extensions/", "docs/", "README.md"],
   "type": "module",
   "keywords": [
     "pi-package"

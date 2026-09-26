@@ -4,7 +4,7 @@ Browse the records in your current Pi session and open any record in your editor
 
 | Picker | Editor |
 | - | - |
-| ![Picker](./images/picker.png) | ![Editor](./images/editor.png) |
+| ![Picker](./docs/images/picker.png) | ![Editor](./docs/images/editor.png) |
 
 ## Install
 
