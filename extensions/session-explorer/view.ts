@@ -19,12 +19,13 @@ export async function openLastRecord(ctx: ExtensionContext, record: SessionRecor
 }
 
 export async function browseRecords(ctx: ExtensionContext, records: SessionRecord[], editor: string, sessionPath: string): Promise<void> {
-  const items: SelectItem[] = records.map((record) => ({
+  const newestFirst = [...records].reverse();
+  const items: SelectItem[] = newestFirst.map((record) => ({
     value: `${record.label} #${record.line}${record.itemIndex === undefined ? "" : `.${record.itemIndex + 1}`}`,
     label: `${record.line}${record.itemIndex === undefined ? "" : `.${record.itemIndex + 1}`}: ${record.label}`,
   }));
 
-  const byItem = new Map(items.map((item, index) => [item, records[index]]));
+  const byItem = new Map(items.map((item, index) => [item, newestFirst[index]]));
   const pageSize = 12;
   await ctx.ui.custom<void>((tui, theme, _keys, done) => {
     const container = new Container();

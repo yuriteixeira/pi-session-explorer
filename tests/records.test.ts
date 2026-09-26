@@ -7,7 +7,7 @@ import { openRecord } from "../extensions/session-explorer/editor.ts";
 import { describeRecord, formatMarkdownRecord } from "../extensions/session-explorer/content.ts";
 import { formatRawRecord, lastAssistantRecord, readRecords } from "../extensions/session-explorer/records.ts";
 import { snapshotPath } from "../extensions/session-explorer/snapshot.ts";
-import { openLastRecord } from "../extensions/session-explorer/view.ts";
+import { browseRecords, openLastRecord } from "../extensions/session-explorer/view.ts";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 test("uses the session name and requested turn pattern", () => {
@@ -72,6 +72,28 @@ test("finds the latest assistant message across JSONL lines and transaction item
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("the turns picker shows newest records first without changing file order", async () => {
+  const records = [
+    { line: 1, raw: '{}', label: 'header' },
+    { line: 2, itemIndex: 0, raw: '{}', label: 'first item' },
+    { line: 2, itemIndex: 1, raw: '{}', label: 'second item' },
+    { line: 3, raw: '{}', label: 'latest' },
+  ];
+  let display = '';
+  const theme = { fg: (_color: string, text: string) => text };
+  const ctx = { ui: { custom: (factory: Function) => new Promise<void>((resolve) => {
+    const screen = factory({}, theme, null, resolve);
+    display = screen.render(100).join('\n');
+    resolve();
+  }) } } as unknown as ExtensionContext;
+  await browseRecords(ctx, records, 'unused', '/sessions/session.jsonl');
+  const labels = ['3: latest', '2.2: second item', '2.1: first item', '1: header'];
+  assert.deepEqual(labels.map((label) => display.indexOf(label)).sort((a, b) => a - b),
+    labels.map((label) => display.indexOf(label)));
+  assert.ok(labels.every((label) => display.includes(label)));
+  assert.deepEqual(records.map((record) => record.label), ['header', 'first item', 'second item', 'latest']);
 });
 
 test("opens the latest assistant message with the picker file path and restores the terminal", async () => {
