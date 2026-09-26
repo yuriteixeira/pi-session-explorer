@@ -30,7 +30,7 @@ async function explore(ctx: ExtensionCommandContext): Promise<void> {
 }
 
 export default function sessionExplorer(pi: ExtensionAPI): void {
-  pi.registerCommand("session-explorer", {
+  pi.registerCommand("turns", {
     description: "Browse all JSONL records in this session and view them in $EDITOR",
     handler: async (_args, ctx) => explore(ctx),
   });
