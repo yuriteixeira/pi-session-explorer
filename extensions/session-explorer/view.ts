@@ -1,12 +1,12 @@
 import { DynamicBorder, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Container, getKeybindings, Input, SelectList, Text, type SelectItem } from "@earendil-works/pi-tui";
-import { openRecord } from "./editor.ts";
+import { Container, getKeybindings, Input, Key, matchesKey, SelectList, Text, type SelectItem } from "@earendil-works/pi-tui";
+import { openRecord, type RecordView } from "./editor.ts";
 import type { SessionRecord } from "./records.ts";
 
 export async function browseRecords(ctx: ExtensionContext, records: SessionRecord[], editor: string): Promise<void> {
   const items: SelectItem[] = records.map((record) => ({
-    value: `${record.label} #${record.line}`,
-    label: `${record.line}: ${record.label}`,
+    value: `${record.label} #${record.line}${record.itemIndex === undefined ? "" : `.${record.itemIndex + 1}`}`,
+    label: `${record.line}${record.itemIndex === undefined ? "" : `.${record.itemIndex + 1}`}: ${record.label}`,
   }));
 
   const byItem = new Map(items.map((item, index) => [item, records[index]]));
@@ -24,7 +24,7 @@ export async function browseRecords(ctx: ExtensionContext, records: SessionRecor
       noMatch: (text) => theme.fg("warning", text),
     });
     container.addChild(list);
-    container.addChild(new Text(theme.fg("dim", "Type to filter · arrows to move · Enter to open · Esc to clear or close")));
+    container.addChild(new Text(theme.fg("dim", "Filter · arrows to move · Enter: Markdown · Ctrl+R: raw JSON · Esc: clear or close")));
     container.addChild(new DynamicBorder((text) => theme.fg("accent", text)));
 
     let busy = false;
@@ -35,11 +35,11 @@ export async function browseRecords(ctx: ExtensionContext, records: SessionRecor
         list.setFilter("");
       } else done();
     };
-    list.onSelect = (item) => {
-      if (busy) return;
+    const launch = (item: SelectItem | undefined, view: RecordView) => {
+      if (busy || !item) return;
       busy = true;
       tui.stop();
-      void openRecord(byItem.get(item)!, editor)
+      void openRecord(byItem.get(item)!, editor, view)
         .catch((error: unknown) => ctx.ui.notify(`Could not open editor: ${String(error)}`, "error"))
         .finally(() => {
           tui.start();
@@ -47,6 +47,7 @@ export async function browseRecords(ctx: ExtensionContext, records: SessionRecor
           busy = false;
         });
     };
+    list.onSelect = (item) => launch(item, "markdown");
 
     return {
       render: (width: number) => container.render(width),
@@ -56,7 +57,9 @@ export async function browseRecords(ctx: ExtensionContext, records: SessionRecor
       handleInput: (data: string) => {
         if (busy) return;
         const kb = getKeybindings();
-        if (kb.matches(data, "tui.select.up") || kb.matches(data, "tui.select.down") ||
+        if (matchesKey(data, Key.ctrl("r"))) {
+          launch(list.getSelectedItem() ?? undefined, "raw");
+        } else if (kb.matches(data, "tui.select.up") || kb.matches(data, "tui.select.down") ||
             kb.matches(data, "tui.select.confirm") || kb.matches(data, "tui.select.cancel")) {
           list.handleInput(data);
         } else {

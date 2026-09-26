@@ -1,0 +1,1 @@
+- [ ] fix: system-prompt needs a special parser to show its parts nicely in markdown mode
