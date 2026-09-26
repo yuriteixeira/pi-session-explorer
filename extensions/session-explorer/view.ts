@@ -4,7 +4,7 @@ import { openRecord, type RecordView } from "./editor.ts";
 import { navigateList } from "./navigation.ts";
 import type { SessionRecord } from "./records.ts";
 
-export async function browseRecords(ctx: ExtensionContext, records: SessionRecord[], editor: string): Promise<void> {
+export async function browseRecords(ctx: ExtensionContext, records: SessionRecord[], editor: string, sessionPath: string): Promise<void> {
   const items: SelectItem[] = records.map((record) => ({
     value: `${record.label} #${record.line}${record.itemIndex === undefined ? "" : `.${record.itemIndex + 1}`}`,
     label: `${record.line}${record.itemIndex === undefined ? "" : `.${record.itemIndex + 1}`}: ${record.label}`,
@@ -41,7 +41,7 @@ export async function browseRecords(ctx: ExtensionContext, records: SessionRecor
       if (busy || !item) return;
       busy = true;
       tui.stop();
-      void openRecord(byItem.get(item)!, editor, view)
+      void openRecord(byItem.get(item)!, editor, view, sessionPath)
         .catch((error: unknown) => ctx.ui.notify(`Could not open editor: ${String(error)}`, "error"))
         .finally(() => {
           tui.start();

@@ -23,7 +23,7 @@ async function explore(ctx: ExtensionCommandContext): Promise<void> {
       ctx.ui.notify("The session file has no records", "info");
       return;
     }
-    await browseRecords(ctx, records, editor);
+    await browseRecords(ctx, records, editor, path);
   } catch (error) {
     ctx.ui.notify(`Could not read session records: ${String(error)}`, "error");
   }

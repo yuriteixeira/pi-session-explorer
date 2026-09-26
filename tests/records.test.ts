@@ -1,11 +1,19 @@
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
 import { openRecord } from "../extensions/session-explorer/editor.ts";
 import { describeRecord, formatMarkdownRecord } from "../extensions/session-explorer/content.ts";
 import { formatRawRecord, readRecords } from "../extensions/session-explorer/records.ts";
+import { snapshotPath } from "../extensions/session-explorer/snapshot.ts";
+
+test("uses the session name and requested turn pattern", () => {
+  const session = "/sessions/2026-09-26T18-31-46-656Z_01a0defc-d4de-7720-9e35-bf527a68aef2.jsonl";
+  const record = { line: 6, raw: '{"type":"message","message":{"role":"assistant","content":[{"type":"toolCall"}]}}', label: "toolcall" };
+  assert.equal(snapshotPath("/tmp/pi-session-explorer", session, record, "md"),
+    "/tmp/pi-session-explorer/2026-09-26T18-31-46-656Z_01a0defc-d4de-7720-9e35-bf527a68aef2/turn-0006--toolcall.md");
+});
 
 test("lists all nonempty JSONL records in file order, including header and invalid JSON", async () => {
   const dir = await mkdtemp(join(tmpdir(), "explorer-test-"));
@@ -57,31 +65,69 @@ test("editor shows plain tool output in Markdown and preserves color codes in ra
     const raw = JSON.stringify({ type: "message", message: { role: "toolResult", content: [{ type: "text", text: colored }] } });
     await writeFile(script, `require('node:fs').copyFileSync(process.argv[2], ${JSON.stringify(output)});`);
     const record = { line: 1, raw, label: "toolResult" };
-    await openRecord(record, `${process.execPath} ${script}`);
+    const session = join(dir, `${basename(dir)}.jsonl`);
+    await openRecord(record, `${process.execPath} ${script}`, "markdown", session);
     assert.match(await readFile(output, "utf8"), /\n---\n\ngreen\n$/);
-    await openRecord(record, `${process.execPath} ${script}`, "raw");
+    await openRecord(record, `${process.execPath} ${script}`, "raw", session);
     assert.equal(JSON.parse(await readFile(output, "utf8")).message.content[0].text, colored);
   } finally {
+    await rm(join(tmpdir(), "pi-session-explorer", basename(dir)), { recursive: true, force: true });
     await rm(dir, { recursive: true, force: true });
   }
 });
 
-test("opens an isolated temporary copy and removes it after editor exit", async () => {
+test("saves snapshots under the session name with a padded turn and content type", async () => {
   const dir = await mkdtemp(join(tmpdir(), "explorer-test-"));
   try {
-    const source = join(dir, "source.jsonl");
+    const pathLog = join(dir, "path.txt");
+    const script = join(dir, "editor.cjs");
+    await writeFile(script, `require('node:fs').writeFileSync(${JSON.stringify(pathLog)}, process.argv[2]);`);
+    const session = join(dir, `${basename(dir)}.jsonl`);
+    const examples = [
+      [{ type: "message", message: { role: "assistant", content: [{ type: "toolCall", name: "bash" }] } }, "toolcall"],
+      [{ type: "message", message: { role: "toolResult", content: "done" } }, "toolresult"],
+      [{ type: "message", message: { role: "assistant", content: [{ type: "thinking", thinking: "hmm" }] } }, "thinking"],
+      [{ type: "message", message: { role: "assistant", content: [{ type: "text", text: "done" }] } }, "answer"],
+      [{ type: "message", message: { role: "user", content: "hi" } }, "user"],
+    ] as const;
+    for (const [entry, kind] of examples) {
+      await openRecord({ line: 12, itemIndex: 1, raw: JSON.stringify(entry), label: "test" }, `${process.execPath} ${script}`, "markdown", session);
+      const file = await readFile(pathLog, "utf8");
+      assert.equal(dirname(file), join(tmpdir(), "pi-session-explorer", basename(dir)));
+      assert.equal(basename(file), `turn-0012-item-2--${kind}.md`);
+      assert.match(await readFile(file, "utf8"), /line: 12/);
+    }
+    await openRecord({ line: 2, raw: JSON.stringify(examples[1][0]), label: "test" }, `${process.execPath} ${script}`, "raw", session);
+    assert.equal(basename(await readFile(pathLog, "utf8")), "turn-0002--toolresult.json");
+  } finally {
+    await rm(join(tmpdir(), "pi-session-explorer", basename(dir)), { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("preserves edits on later visits without changing the session file", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "explorer-test-"));
+  try {
+    const source = join(dir, `${basename(dir)}.jsonl`);
     const output = join(dir, "viewed.json");
     const script = join(dir, "editor.cjs");
     const raw = '{"type":"message","message":{"role":"user","content":"hi"}}';
     await writeFile(source, `${raw}\n`);
     await writeFile(script, `const fs = require('node:fs'); fs.copyFileSync(process.argv[2], ${JSON.stringify(output)}); fs.writeFileSync(process.argv[2], 'changed');`);
-    await openRecord({ line: 1, raw, label: "message" }, `${process.execPath} ${script}`);
+    const record = { line: 1, raw, label: "message" };
+    await openRecord(record, `${process.execPath} ${script}`, "markdown", source);
     assert.equal(await readFile(source, "utf8"), `${raw}\n`);
     assert.match(await readFile(output, "utf8"), /---\nline: 1\ntype: "message"/);
     assert.match(await readFile(output, "utf8"), /\n---\n\nhi\n$/);
-    await openRecord({ line: 1, raw, label: "message" }, `${process.execPath} ${script}`, "raw");
+    const saved = join(tmpdir(), "pi-session-explorer", basename(dir), "turn-0001--user.md");
+    assert.equal(await readFile(saved, "utf8"), "changed");
+    await openRecord(record, `${process.execPath} ${script}`, "markdown", source);
+    assert.equal(await readFile(output, "utf8"), "changed");
+    await openRecord(record, `${process.execPath} ${script}`, "raw", source);
     assert.equal(JSON.parse(await readFile(output, "utf8")).type, "message");
+    assert.equal(await readFile(source, "utf8"), `${raw}\n`);
   } finally {
+    await rm(join(tmpdir(), "pi-session-explorer", basename(dir)), { recursive: true, force: true });
     await rm(dir, { recursive: true, force: true });
   }
 });
