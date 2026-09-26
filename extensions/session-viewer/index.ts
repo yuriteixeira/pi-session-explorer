@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { lastAssistantRecord, readRecords } from "./records.ts";
 import { browseRecords, openLastRecord } from "./view.ts";
@@ -12,12 +13,20 @@ async function explore(ctx: ExtensionCommandContext, lastOnly = false): Promise<
     ctx.ui.notify("This session has no JSONL file", "warning");
     return;
   }
-  const editor = process.env.EDITOR?.trim();
-  if (!editor) {
-    ctx.ui.notify("Set $EDITOR before starting Pi to open session records", "warning");
-    return;
-  }
   try {
+    const file = await stat(path).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    if (!file?.isFile()) {
+      ctx.ui.notify("This session has no JSONL file to browse", "info");
+      return;
+    }
+    const editor = process.env.EDITOR?.trim();
+    if (!editor) {
+      ctx.ui.notify("Set $EDITOR before starting Pi to open session records", "warning");
+      return;
+    }
     const records = await readRecords(path);
     if (records.length === 0) {
       ctx.ui.notify("The session file has no records", "info");
@@ -34,6 +43,10 @@ async function explore(ctx: ExtensionCommandContext, lastOnly = false): Promise<
       await browseRecords(ctx, records, editor, path);
     }
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      ctx.ui.notify("This session has no JSONL file to browse", "info");
+      return;
+    }
     ctx.ui.notify(`Could not read session records: ${String(error)}`, "error");
   }
 }
