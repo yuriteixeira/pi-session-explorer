@@ -1,5 +1,5 @@
 import { DynamicBorder, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Container, getKeybindings, Input, Key, matchesKey, SelectList, Text, type SelectItem } from "@earendil-works/pi-tui";
+import { Container, getKeybindings, Input, Key, matchesKey, SelectList, Text, truncateToWidth, type SelectItem } from "@earendil-works/pi-tui";
 import { openRecord, type RecordView } from "./editor.ts";
 import { navigateList } from "./navigation.ts";
 import type { SessionRecord } from "./records.ts";
@@ -18,14 +18,29 @@ export async function openLastRecord(ctx: ExtensionContext, record: SessionRecor
   });
 }
 
+function alignedLabel(label: string): string {
+  return label.replace(/^(message \/ )([^·]+?)( · )/, (_match, prefix: string, role: string, separator: string) =>
+    `${prefix}${role.padEnd(10)}${separator}`);
+}
+
+function endsAssistantTurn(raw: string): boolean {
+  try {
+    const record = JSON.parse(raw);
+    return record?.message?.role === "assistant" && record.message.stopReason === "stop";
+  } catch {
+    return false;
+  }
+}
+
 export async function browseRecords(ctx: ExtensionContext, records: SessionRecord[], editor: string, sessionPath: string): Promise<void> {
   const newestFirst = [...records].reverse();
   const items: SelectItem[] = newestFirst.map((record) => ({
     value: `${record.label} #${record.line}${record.itemIndex === undefined ? "" : `.${record.itemIndex + 1}`}`,
-    label: `${record.line}${record.itemIndex === undefined ? "" : `.${record.itemIndex + 1}`}: ${record.label}`,
+    label: `${record.line}${record.itemIndex === undefined ? "" : `.${record.itemIndex + 1}`}: ${alignedLabel(record.label)}`,
   }));
 
   const byItem = new Map(items.map((item, index) => [item, newestFirst[index]]));
+  const completed = new Set(items.filter((item) => endsAssistantTurn(byItem.get(item)!.raw)));
   const pageSize = 12;
   await ctx.ui.custom<void>((tui, theme, _keys, done) => {
     const container = new Container();
@@ -39,6 +54,13 @@ export async function browseRecords(ctx: ExtensionContext, records: SessionRecor
       description: (text) => theme.fg("muted", text),
       scrollInfo: (text) => theme.fg("dim", text),
       noMatch: (text) => theme.fg("warning", text),
+    }, {
+      truncatePrimary: ({ text, maxWidth, item }) => {
+        const visible = truncateToWidth(text, maxWidth, "");
+        if (!completed.has(item)) return visible;
+        const prefix = visible.match(/^\d+(?:\.\d+)?: /)?.[0] ?? "";
+        return `${prefix}\x1b[1;97m${visible.slice(prefix.length)}\x1b[0m`;
+      },
     });
     container.addChild(list);
     container.addChild(new Text(theme.fg("dim", "Filter · arrows to move · PgUp/PgDn or Ctrl+B/F: page · Home/End: first/last · Enter: Markdown · Ctrl+R: raw JSON · Esc: clear or close")));

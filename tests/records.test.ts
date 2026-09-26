@@ -96,6 +96,29 @@ test("the turns picker shows newest records first without changing file order", 
   assert.deepEqual(records.map((record) => record.label), ['header', 'first item', 'second item', 'latest']);
 });
 
+test("aligns picker roles and highlights only completed assistant turns", async () => {
+  const records = [
+    { line: 36, raw: JSON.stringify({ type: "message", message: { role: "toolResult", content: "result" } }), label: "message / toolResult · result" },
+    { line: 37, raw: JSON.stringify({ type: "message", message: { role: "assistant", stopReason: "toolUse" } }), label: "message / assistant · command" },
+    { line: 38, raw: JSON.stringify({ type: "message", message: { role: "toolResult", content: "done" } }), label: "message / toolResult · done" },
+    { line: 39, raw: JSON.stringify({ type: "message", message: { role: "assistant", stopReason: "stop" } }), label: "message / assistant · finished" },
+  ];
+  let display = "";
+  const theme = { fg: (_color: string, text: string) => text };
+  const ctx = { ui: { custom: (factory: Function) => new Promise<void>((resolve) => {
+    const screen = factory({}, theme, null, resolve);
+    display = screen.render(100).join("\n");
+    resolve();
+  }) } } as unknown as ExtensionContext;
+  await browseRecords(ctx, records, "unused", "/sessions/session.jsonl");
+  assert.match(display, /→ 39: \x1b\[1;97mmessage \/ assistant  · finished\x1b\[0m/);
+  assert.match(display, /  38: message \/ toolResult · done/);
+  assert.match(display, /  37: message \/ assistant  · command/);
+  assert.match(display, /  36: message \/ toolResult · result/);
+  assert.equal((display.match(/\x1b\[1;97m/g) ?? []).length, 1);
+  assert.equal(records[3].label, "message / assistant · finished");
+});
+
 test("opens the latest assistant message with the picker file path and restores the terminal", async () => {
   const dir = await mkdtemp(join(tmpdir(), "explorer-test-"));
   try {
