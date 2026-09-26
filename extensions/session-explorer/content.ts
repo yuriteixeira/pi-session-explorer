@@ -1,3 +1,5 @@
+import { formatSystemMessage } from "./system-content.ts";
+
 type ObjectValue = Record<string, unknown>;
 
 function object(value: unknown): ObjectValue | undefined {
@@ -49,6 +51,7 @@ function content(value: unknown): string {
 }
 
 function messageBody(message: ObjectValue): string {
+  if (message.role === "system") return formatSystemMessage(message) || content(message.content);
   if (message.role === "bashExecution") {
     return [`### Command\n\n${code(String(message.command ?? ""), "sh")}`, `### Output\n\n${code(String(message.output ?? ""))}`].join("\n\n");
   }
@@ -78,7 +81,7 @@ function metadata(record: ObjectValue, line: number, itemIndex?: number): Object
   const messageInfo = object(message);
   if (!messageInfo) return { line, ...(itemIndex === undefined ? {} : { transactionItem: itemIndex + 1 }), ...rest };
   const { content: _messageContent, command: _command, output: _output, summary: _messageSummary,
-    sections: _sections, ...messageMetadata } = messageInfo;
+    sections: _sections, toolsAdded: _toolsAdded, ...messageMetadata } = messageInfo;
   return { line, ...(itemIndex === undefined ? {} : { transactionItem: itemIndex + 1 }), ...rest, message: messageMetadata };
 }
 

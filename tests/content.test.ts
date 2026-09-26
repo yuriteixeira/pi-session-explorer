@@ -14,6 +14,29 @@ test("puts record and message metadata before user content", () => {
   assert.doesNotMatch(markdown.split("---")[1], /Hello/);
 });
 
+test("maps system sections, skills and tool definitions to Markdown headings", () => {
+  const markdown = view({ type: "message", message: { role: "system", content: "", sections: {
+    preamble: "You are an assistant.",
+    rules: "<rules>\n- Be clear\n</rules>",
+    skills: "<skills>\nRead the skills.\n<available_skills>\n<skill>\n<name>planning</name>\n<description>Plan the work.</description>\n<location>/skills/planning/SKILL.md</location>\n</skill>\n</available_skills>\n</skills>",
+    cwd: "<cwd>\n/work\n</cwd>",
+  }, toolsAdded: [{ name: "read", description: "Read files.", parameters: { type: "object", properties: { path: { type: "string" } } } }] } });
+  assert.match(markdown, /## System prompt\n\nYou are an assistant\./);
+  assert.match(markdown, /## Rules\n\n- Be clear/);
+  assert.match(markdown, /## Skills\n\nRead the skills\.\n\n### planning\n\nPlan the work\.\n\nLocation: `\/skills\/planning\/SKILL\.md`/);
+  assert.match(markdown, /## Working directory\n\n\/work/);
+  assert.match(markdown, /## Tool definitions\n\n### read\n\nRead files\.\n\nParameters:\n\n```json/);
+  assert.ok(markdown.indexOf("## Skills") < markdown.indexOf("## Tool definitions"));
+  assert.doesNotMatch(markdown.split("---")[1], /toolsAdded|sections/);
+  assert.doesNotMatch(markdown, /<available_skills>|<rules>|<cwd>/);
+});
+
+test("system records without sections retain content and unusual sections remain visible", () => {
+  assert.match(view({ type: "message", message: { role: "system", content: "Plain prompt" } }), /## System prompt\n\nPlain prompt\n$/);
+  assert.match(view({ type: "message", message: { role: "system", sections: { custom: "<custom>keep this</custom>" }, toolsAdded: [] } }), /## Custom\n\nkeep this\n$/);
+  assert.match(view({ type: "message", message: { role: "system", sections: { skills: "<skills>\n<available_skills>unexpected</available_skills>\n</skills>" } } }), /<available_skills>unexpected<\/available_skills>/);
+});
+
 test("shows thinking, tool commands and text in message order; picker favors command", () => {
   const record = { type: "message", message: { role: "assistant", content: [
     { type: "thinking", thinking: "Reasoning here", thinkingSignature: "private" },
